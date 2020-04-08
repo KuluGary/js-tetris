@@ -1,0 +1,454 @@
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <script type="module">
+        let color = {
+            background: "#5c2a3b",
+            wall: "#d83c66",
+            solid: "#49b5ab",
+            tetromino: "#e97539"
+        };
+
+        let width = 20;
+        let height = 30;
+        let well = new Array(height);
+        let fog = new Array(height);
+        const square_size = 16;
+
+        let A = [0, 0, 1,
+            0, 0, 1,
+            0, 1, 1];
+
+        let B = [1, 0, 0,
+            1, 0, 0,
+            1, 1, 0];
+
+        let C = [0, 0, 0,
+            0, 1, 0,
+            1, 1, 1];
+
+        let D = [0, 0, 0,
+            0, 1, 1,
+            1, 1, 0];
+
+        let E = [0, 0, 0,
+            1, 1, 0,
+            0, 1, 1];
+
+        let F = [1, 1, 0,
+            1, 1, 0,
+            0, 0, 0];
+
+        let G = [0, 0, 0,
+            1, 1, 1,
+            0, 0, 0];
+
+        let tetrominos = [A, B, C, D, E, F, G];
+
+        for (let y = 0; y < width; y++)
+            well[y] = new Array(height).fill(0);
+
+        for (let x = 0; x < width; x++)
+            well[x][height - 1] = 2;
+
+        for (let y = 0; y < height; y++) {
+            well[0][y] = 1;
+            well[width - 1][y] = 1;
+        }
+
+        let points = document.createElement("div");
+        points.setAttribute("id", "points");
+        points.style.position = "absolute";
+        points.style.color = "#fff";
+        points.innerHTML = "0";
+        points.style.left = "455px";
+        points.style.top = "80px";
+        points.style.zIndex = 10;
+        points.style.fontFamily = 'VT323'
+        points.style.fontSize = 25
+        document.body.appendChild(points);
+
+        let ui = document.createElement("div");
+        ui.setAttribute("id", "ui");
+        ui.style.position = "absolute";
+        ui.style.color = "#fff";
+        ui.innerHTML = "PRESS UP TO ROTATE<br />PRESS SPACE TO RESTART<br />";
+        ui.style.left = "455px";
+        ui.style.top = "110px";
+        ui.style.fontFamily = 'VT323'
+        ui.style.fontSize = 14
+        document.body.appendChild(ui);
+        
+
+        let audio = document.createElement("audio");
+        audio.loop = true;
+        audio.autoplay = true; 
+        audio.volume = .5;
+        audio.src = "https://upload.wikimedia.org/wikipedia/commons/e/e5/Tetris_theme.ogg";
+        
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let square = document.createElement("div");
+                square.setAttribute("id", "square_x" + x + "y" + y);
+                square.style.position = "absolute";
+                square.style.left = x * square_size + "px";
+                square.style.top = y * square_size + "px";
+                square.style.width = square_size + "px";
+                square.style.height = square_size + "px";
+                square.style.zIndex = 0;
+                square.style.border = "1px solid rgba(0,0,0,0.2)"
+                let block_type = well[x][y];
+                if (block_type == 0) square.style.background = color.background;
+                if (block_type == 1) square.style.background = color.wall;
+                if (block_type == 2) square.style.background = color.wall;
+                document.body.appendChild(square);
+            }
+        }
+
+
+        let index = 0;
+        for (let y = 0; y < 3; y++) {
+            for (let x = 0; x < 3; x++, index++) {
+                let square = document.createElement("div");
+                square.setAttribute("id", "next_" + index);
+                square.style.position = "absolute";
+                square.style.left = 455 + (x * square_size) + "px";
+                square.style.top = 0 + y * square_size + "px";
+                square.style.width = square_size + "px";
+                square.style.height = square_size + "px";
+                square.style.background = color.background;
+                document.body.appendChild(square);
+            }
+        }
+
+
+        let position = { x: (width / 2) - 1, y: -3 };
+
+        let current = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let next = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+
+        function make_random() {
+
+            let index = Math.floor((Math.random() * tetrominos.length));
+
+            return [...tetrominos[index]];
+        }
+
+
+        function update_next() {
+            for (let i = 0; i < 9; i++) {
+                let square = document.getElementById("next_" + i);
+                next[i] == 1 ? square.style.backgroundColor = color.tetromino :
+                    square.style.backgroundColor = color.background;
+            }
+        }
+
+        function reset() {
+            paste();
+            clear_row();
+            current = [...next];
+            next = make_random();
+            update_next();
+
+
+            position.x = parseInt(width / 2) - 1;
+            position.y = -3;
+        }
+
+        let test = false;
+        window.onload = function () {
+
+            setInterval((T) => { process_highlights() }, 3);
+
+            current = make_random();
+            next = make_random();
+            update_next();
+
+            setInterval(() => {
+                erase();
+                if (will_collide(dir.DOWN)) {
+                    reset();
+                } else fall()
+                draw();
+                add_points();
+
+            }, 1000);
+
+
+            document.addEventListener("keydown", (e) => {
+                let key_code = e.keyCode;
+
+                erase();
+
+                if (key_code == 37) {
+                    if (will_collide(dir.LEFT)) {
+                        console.log("collide left")
+                    } else position.x -= 1
+                }
+
+                if (key_code == 39) {
+                    if (will_collide(dir.RIGHT)) {
+                        console.log("collide right")
+                    } else position.x += 1
+                }
+
+                if (key_code == 40) {
+                    if (will_collide(dir.DOWN)) {
+                        reset();
+                    } else position.y += 1
+                }
+
+                if (key_code == 38) { rotate_left() }
+
+                if (key_code == 32) location.reload()
+
+                draw();
+            });
+
+        }
+
+
+        function paste() {
+            let index = 0;
+            if (position.x >= 0 && position.x <= width - 1) {
+                if (position.y >= -3 && position.y <= height - 1) {
+                    for (let y = position.y; y < position.y + 3; y++) {
+                        for (let x = position.x; x < position.x + 3; x++, index++) {
+                            if (current[index] == 1) {
+                                let square = document.getElementById("square_x" + x + "y" + y);
+                                if (square) {
+                                    well[x][y] = 3;
+                                    square.style.backgroundColor = color.solid;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function erase() {
+            let index = 0;
+            if (position.x >= 0 && position.x <= width - 1) {
+                if (position.y >= -3 && position.y <= height - 1) {
+                    for (let y = position.y; y < position.y + 3; y++) {
+                        for (let x = position.x; x < position.x + 3; x++, index++) {
+                            if (current[index] == 1) {
+                                let square = document.getElementById("square_x" + x + "y" + y);
+                                if (square) {
+                                    if (true) {
+                                        well[x][y] = 0;
+                                        if (x == 0 || x == width - 1) { } else {
+                                            square.style.backgroundColor = color.background;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function scan_row(y) {
+
+            let row_data = [];
+
+            let total = 0;
+
+            for (let x = 0; x < width; x++) {
+                row_data[x] = well[x][y];
+                if (well[x][y] != 0) total++;
+            }
+
+            return [total, row_data];
+        }
+
+        function add_points(rows = null) {
+            let old_points = parseInt(document.getElementById("points").innerHTML);
+            let current_points;
+
+            if (rows) {
+                current_points = (old_points + (rows * 100)).toString();
+            } else {
+                current_points = (old_points + 10).toString()
+            }             
+
+            document.getElementById("points").innerHTML = current_points.toString()
+        }
+
+        function clear_row() {
+            let placeholder = [];
+
+            let rows_cleared = 0;
+
+            for (let y = 0; y < height - 1; y++) {
+                let start = y * width;
+                let scanned = scan_row(y);
+                let total = scanned[0];
+                let row_data = scanned[1];
+
+                if (total != width) {
+
+                    let len = placeholder.length;
+                    placeholder[len] = row_data;
+                } else {
+                    start_highlight(y);
+                    rows_cleared++;
+                }
+            }
+
+            if (rows_cleared > 0) {
+
+                for (let y = 0; y < height - 1; y++) {
+
+                    for (let x = 1; x < width - 1; x++) {
+                        well[x][y] = 0;
+
+                        let square = document.getElementById("square_x" + x + "y" + y);
+                        if (square) square.style.backgroundColor = color.background;
+                    }
+                }
+
+                add_points(rows_cleared);
+
+
+                let r = height - 2;
+                for (let i = placeholder.length - 1; i > 0; i--) {
+                    let row = placeholder[i];
+
+                    for (let x = 0; x < width; x++) {
+                        if (row[x] != 0) {
+                            well[x][r] = 3;
+                            if (x != 0 && x != width - 1) {
+                                let square = document.getElementById("square_x" + x + "y" + r);
+                                if (square) square.style.backgroundColor = color.solid;
+                            }
+                        }
+                    }
+                    r--;
+                }
+            }
+        }
+
+        function draw() {
+            let index = 0;
+            if (position.x >= 0 && position.x <= width - 1) {
+                if (position.y >= -3 && position.y <= height - 1) {
+                    for (let y = position.y; y < position.y + 3; y++) {
+                        for (let x = position.x; x < position.x + 3; x++, index++) {
+                            if (current[index] == 1) {
+                                let square = document.getElementById("square_x" + x + "y" + y);
+                                if (square) {
+                                    if (true) {
+                                        square.style.backgroundColor = color.tetromino;
+
+                                        if (x == 0 || x == width - 1 || y == height - 1) {
+                                            square.style.backgroundColor = "red";
+                                        } else {
+                                            well[x][y] = 2;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        const dir = { LEFT: 0, RIGHT: 1, DOWN: 2 };
+
+        function will_collide(direction) {
+            let posx = position.x;
+            let posy = position.y;
+            if (direction == dir.LEFT) posx--;
+            if (direction == dir.RIGHT) posx++;
+            if (direction == dir.DOWN) posy++;
+            let index = 0;
+            if (posx >= 0 && posx <= width - 1) {
+                if (posy >= -3 && posy <= height - 1) {
+                    for (let y = posy; y < posy + 3; y++) {
+                        for (let x = posx; x < posx + 3; x++, index++) {
+                            if (current[index] == 1) {
+                                let square = document.getElementById("square_x" + x + "y" + y);
+                                if (square) {
+
+                                    if (well[x][y] == 3 || well[x][y] == 1 || x == 0 || x == width - 1 || y == height - 1)
+                                        return true;
+
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function fall() {
+            position.y += 1;
+        }
+
+        function rotate_left() {
+            let copy = [...current];
+            let map = [2, 5, 8, 1, 4, 7, 0, 3, 6];
+            current.fill(0);
+            for (let i = 0; i < 9; i++)
+                current[i] = copy[map[i]];
+        }
+
+        function rotate_right() {
+            let copy = [...current];
+            let map = [6, 3, 0, 7, 4, 1, 8, 5, 2];
+            current.fill(0);
+            for (let i = 0; i < 9; i++)
+                current[i] = copy[map[i]];
+        }
+
+
+        let highlights = [];
+        for (let i = 0; i < height - 1; i++) {
+            highlights[i] = { state: 1, opacity: 1.0 };
+            let highlight = document.createElement("div");
+            highlight.setAttribute("id", "highlight_" + i);
+            highlight.style.position = "absolute";
+            highlight.style.left = square_size + "px";
+            highlight.style.top = i * square_size + "px";
+            highlight.style.width = (square_size * width) - (square_size * 2) + "px";
+            highlight.style.height = square_size + "px";
+            highlight.style.zIndex = 1;
+            highlight.style.pointerEvents = "none";
+            highlight.style.opacity = highlights[i].opacity;
+            highlight.style.background = "white";
+            document.body.appendChild(highlight);
+        }
+
+        function start_highlight(i) {
+            highlights[i] = { state: 1, opacity: 1 };
+        }
+
+        function process_highlights() {
+            for (let i = 0; i < height; i++) {
+                if (highlights[i])
+                    if (highlights[i].state == 1) {
+                        if (highlights[i].opacity > 0.0) {
+                            highlights[i].opacity -= 0.01;
+                            if (document.getElementById("highlight_" + i))
+                                document.getElementById("highlight_" + i).style.opacity = highlights[i].opacity;
+                        } else {
+                            highlights[i].state = 0;
+                            highlights[i].opacity = 0;
+                        }
+                    }
+            }
+        }
+
+    </script>
+    
+</head>
+
+<body
+    style="display: block; position: relative; background: black; margin-left: 100px; margin-top: 50px; overflow: hidden;">
+</body>
